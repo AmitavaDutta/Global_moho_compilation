@@ -2,7 +2,7 @@
 
 ### spline_crust.py : This is a python script for generating the spline and the weighted moho as xarray and netCDF files.
 
-Global_crust.csv : THis datafile has the record of global crustal structure obtained from predominantly Receiver Function Analysis and few other seismological studies.
+Global_crust.csv : This datafile has the record of global crustal structure obtained from predominantly Receiver Function Analysis and few other seismological studies.
 Crust1.0 : In this directory we have the Crust1.0 global data in csv and various other formats that are readable using GMT.
 
 1) Crust_Map_No_parallel_computation.ipynb : This is the original script [If needed to change something from scratch this script can be used]
