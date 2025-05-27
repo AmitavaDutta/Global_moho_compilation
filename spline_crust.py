@@ -3,6 +3,7 @@ import numpy as np
 import scipy
 from scipy.spatial import cKDTree
 from scipy.interpolate import griddata
+from scipy.interpolate import NearestNDInterpolator
 import xarray as xr
 import verde as vd
 # For projecting data
@@ -249,13 +250,24 @@ lat_grid = np.arange(-90, 90.1, 0.5)
 lon_grid = np.arange(-180, 180.1, 0.5)
 lon_mesh, lat_mesh = np.meshgrid(lon_grid, lat_grid)
 
-# Step 3: Interpolate the data
+'''
+# Step 3: Interpolate the data with griddata
 grid_z = griddata(
     points=(df['Longitude'], df['Latitude']),
     values=df['Moho'],
     xi=(lon_mesh, lat_mesh),
     method='linear'
 )
+'''
+# Create the interpolator object with NearestNDInterpolator
+interp = NearestNDInterpolator(
+    list(zip(df['Longitude'], df['Latitude'])),
+    df['Moho']
+)
+
+# Evaluate on the grid (lon_mesh, lat_mesh)
+grid_z = interp(lon_mesh, lat_mesh)
+
 
 # Step 4: Create DataArray (do not add attrs here yet)
 data_array = xr.DataArray(
