@@ -1,23 +1,11 @@
 import pandas as pd
 import numpy as np
-import scipy
-from scipy.spatial import cKDTree
-from scipy.interpolate import griddata
-from scipy.interpolate import NearestNDInterpolator
+import scipy as sc
 import xarray as xr
 import verde as vd
 # For projecting data
 import pyproj
 import time
-
-#import pygmt
-#from matplotlib.path import Path
-#import matplotlib.pyplot as plt
-#from matplotlib.ticker import MaxNLocator
-#from matplotlib.colors import LogNorm, PowerNorm
-# For fetching sample datasets
-#import cartopy.crs as ccrs
-#import cartopy.feature as cfeature
 
 #Loading only Lat, Long, Moho_km
 # Define file path
@@ -164,7 +152,7 @@ print(df)
 
 
 # Create KDTree for RF locations (df is assumed to contain RF-based values)
-rf_tree = cKDTree(list(zip(df.longitude, df.latitude)))
+#rf_tree = cKDTree(list(zip(df.longitude, df.latitude)))
 
 # Assign RF Moho directly where RF exists (100% weight to RF)
 df["weighted_moho"] = df["rf_moho"]
@@ -187,11 +175,17 @@ df_no_rf["weighted_moho"] = df_no_rf["Moho"]
 df_no_rf["source"] = "Crust1.0"  # default source
 
 # KDTree for nearest spline_df points
-spline_tree = cKDTree(list(zip(spline_df.longitude, spline_df.latitude)))
-_, nearest_spline_idx = spline_tree.query(list(zip(df_no_rf.longitude, df_no_rf.latitude)))
+#spline_tree = cKDTree(list(zip(spline_df.longitude, spline_df.latitude)))
+#_, nearest_spline_idx = spline_tree.query(list(zip(df_no_rf.longitude, df_no_rf.latitude)))
 
 # Get the nearest spline Moho values from precomputed spline_df
-df_no_rf["nearest_rf_spline_moho"] = spline_df.moho.iloc[nearest_spline_idx].values
+#df_no_rf["nearest_rf_spline_moho"] = spline_df.moho.iloc[nearest_spline_idx].values
+
+# Nearest-neighbor interpolator for spline Moho values
+nn_interp = sc.interpolate.NearestNDInterpolator(list(zip(spline_df.longitude, spline_df.latitude)),spline_df["moho"])
+
+# Apply to df_no_rf coordinates
+df_no_rf["nearest_rf_spline_moho"] = nn_interp(df_no_rf.longitude.values, df_no_rf.latitude.values)
 
 # Compute difference
 x = df_no_rf["nearest_rf_spline_moho"] - df_no_rf["weighted_moho"]
@@ -260,13 +254,10 @@ grid_z = griddata(
 )
 '''
 # Create the interpolator object with NearestNDInterpolator
-interp = NearestNDInterpolator(
-    list(zip(df['Longitude'], df['Latitude'])),
-    df['Moho']
-)
+final_moho_func = sc.interpolate.NearestNDInterpolator(list(zip(df['Longitude'], df['Latitude'])),df['Moho'])
 
 # Evaluate on the grid (lon_mesh, lat_mesh)
-grid_z = interp(lon_mesh, lat_mesh)
+grid_z = final_moho_func(lon_mesh, lat_mesh)
 
 
 # Step 4: Create DataArray (do not add attrs here yet)
@@ -310,7 +301,7 @@ ds.attrs = {
     'creator_name': 'Your Name or Organization',  # Add creator info
     'institution': 'Your Institution',  # Add institution info
     'source': 'Original dataset details (e.g., source of Moho data)',  # Add data source info
-    'history': 'Data processed using griddata method for interpolation',  # Add processing info
+    'history': 'Data processed using NearestNDInterpolator method for interpolation',  # Add processing info
     'date_created': str(pd.to_datetime('today'))  # Add date of creation
 }
 
