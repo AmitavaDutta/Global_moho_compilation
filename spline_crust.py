@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import scipy as sc
+import scipy as scipy
 import xarray as xr
 import verde as vd
 # For projecting data
@@ -35,11 +35,9 @@ print(region)
 print()
 
 # Load Crust1.0
-#path_to_data_file_moho = "/home/amitava/Geodynamics-Project-IISERP/tomo/crust_ind.csv" ## for Ubuntu
-#path_to_data_file_moho = r"D:\Amitava_Laptop\Geodynamics-Project-IISERP\tomo\crust.csv"
-path_to_data_file_moho = "D:\\Amitava\\Projects\\Spline_Moho\\Global_moho_compilation\\Crust1.0\\crust.csv"
-#path_to_data_file_moho = "/home/amitava/Geodynamics-Project-IISERP/India_Tibet/RF_India/Crustal_thickness.csv"
-#path_to_data_file = "/home/amitava/Geodynamics-Project-IISERP/India_Tibet/RF_India/TEC26522-mmc2_aug.csv"
+path_to_data_file_moho = "D:\\Amitava\\Projects\\Spline_Moho\\Global_moho_compilation\\Crust1.0\\crust.csv" ### For Windows
+#path_to_data_file_moho = "/home/amitava/Geodynamics-Project-IISERP/India_Tibet/RF_India/Crustal_thickness.csv" ### For Linux
+
 
 # Read the file again with the extracted header
 data_raw = pd.read_csv(path_to_data_file_moho, sep=r'\s+') ## sep is used instead of delim_whitespace = true as it will be removed in latest pandas
@@ -174,15 +172,8 @@ df_no_rf = data_moho[data_moho[["lat_bin", "lon_bin"]].apply(tuple, axis=1).isin
 df_no_rf["weighted_moho"] = df_no_rf["Moho"]
 df_no_rf["source"] = "Crust1.0"  # default source
 
-# KDTree for nearest spline_df points
-#spline_tree = cKDTree(list(zip(spline_df.longitude, spline_df.latitude)))
-#_, nearest_spline_idx = spline_tree.query(list(zip(df_no_rf.longitude, df_no_rf.latitude)))
-
-# Get the nearest spline Moho values from precomputed spline_df
-#df_no_rf["nearest_rf_spline_moho"] = spline_df.moho.iloc[nearest_spline_idx].values
-
 # Nearest-neighbor interpolator for spline Moho values
-nn_interp = sc.interpolate.NearestNDInterpolator(list(zip(spline_df.longitude, spline_df.latitude)),spline_df["moho"])
+nn_interp = scipy.interpolate.NearestNDInterpolator(list(zip(spline_df.longitude, spline_df.latitude)),spline_df["moho"])
 
 # Apply to df_no_rf coordinates
 df_no_rf["nearest_rf_spline_moho"] = nn_interp(df_no_rf.longitude.values, df_no_rf.latitude.values)
@@ -236,31 +227,22 @@ df_moho = df_moho_depth.copy()
 ds = df_moho.to_xarray()
 print (ds)
 
-# Step 1: Load your dataframe (ensure df_moho is already defined)
+# Load your dataframe (ensure df_moho is already defined)
 df = df_moho.copy()
 
-# Step 2: Define the target grid
+# Define the target grid
 lat_grid = np.arange(-90, 90.1, 0.5)
 lon_grid = np.arange(-180, 180.1, 0.5)
 lon_mesh, lat_mesh = np.meshgrid(lon_grid, lat_grid)
 
-'''
-# Step 3: Interpolate the data with griddata
-grid_z = griddata(
-    points=(df['Longitude'], df['Latitude']),
-    values=df['Moho'],
-    xi=(lon_mesh, lat_mesh),
-    method='linear'
-)
-'''
 # Create the interpolator object with NearestNDInterpolator
-final_moho_func = sc.interpolate.NearestNDInterpolator(list(zip(df['Longitude'], df['Latitude'])),df['Moho'])
+final_moho_func = scipy.interpolate.NearestNDInterpolator(list(zip(df['Longitude'], df['Latitude'])),df['Moho'])
 
 # Evaluate on the grid (lon_mesh, lat_mesh)
 grid_z = final_moho_func(lon_mesh, lat_mesh)
 
 
-# Step 4: Create DataArray (do not add attrs here yet)
+# Create DataArray (do not add attrs here yet)
 data_array = xr.DataArray(
     grid_z,
     coords={'Latitude': lat_grid, 'Longitude': lon_grid},
