@@ -7,23 +7,25 @@ import verde as vd
 import pyproj
 import time
 
+# ====== Note on generating the CSV from .nc ======
+# Converting a NetCDF (.nc) file to CSV/XYZ format using GMT's `grd2xyz` doesn't include a header.
+# So we first create an empty file, manually add the header, then append the data:
+#
+#   touch global_spline_RF.csv
+#   echo "Longitude,Latitude,Moho" >> global_spline_RF.csv
+#   gmt grd2xyz global_moho.nc >> global_spline_RF.csv
+
+# ====== Begining ======
 #Loading only Lat, Long, Moho_km
 # Define file path
-#path_to_data_file = "\Amitava_Laptop\Geodynamics-Project-IISERP\India_Tibet\Global_crust.csv" ## for Linux
-#path_to_data_file = r"D:\Amitava\Projects\Spline_Moho\Global_moho_compilation\Global_crust.csv"
-path_to_data_file = r"D:\Amitava\Projects\Spline_Moho\Global_moho_compilation\Global_crust_Hk.csv" # dataset with only Hk
+path_to_data_file = 'Global_crust_Hk.csv'
+rf_error = 3
 
 # Load only required columns while ignoring commented lines
 data_eq_all = pd.read_csv(path_to_data_file, comment='#', usecols=["Lat", "Long", "Moho_km"])
 
 # Convert Moho_km to numeric, forcing non-numeric values to NaN
 data_eq_all["Moho_km"] = pd.to_numeric(data_eq_all["Moho_km"], errors="coerce")
-
-# Filter data based on longitude and latitude
-data_eq_ind = data_eq_all[
-    (data_eq_all["Long"] >= 65) & (data_eq_all["Long"] <= 110) & 
-    (data_eq_all["Lat"] >= 5) & (data_eq_all["Lat"] <= 45)
-].reset_index(drop=True)
 
 data_eq = data_eq_all
 eq_info = data_eq
@@ -35,24 +37,12 @@ print(region)
 print()
 
 # Load Crust1.0
-path_to_data_file_moho = "D:\\Amitava\\Projects\\Spline_Moho\\Global_moho_compilation\\Crust1.0\\crust.csv" ### For Windows
-#path_to_data_file_moho = "/home/amitava/Geodynamics-Project-IISERP/India_Tibet/RF_India/Crustal_thickness.csv" ### For Linux
-
+path_to_data_file_moho = 'Crust1.0/crust.csv'
 
 # Read the file again with the extracted header
 data_raw = pd.read_csv(path_to_data_file_moho, sep=r'\s+') ## sep is used instead of delim_whitespace = true as it will be removed in latest pandas
-data_moho_all = data_raw.dropna()
+data_moho = data_raw.dropna()
 
-# Apply the filtering criteria
-data_moho_ind = data_moho_all[
-    (data_moho_all["longitude"] >= 65) & (data_moho_all["longitude"] <= 110) & 
-    (data_moho_all["latitude"] >= 5) & (data_moho_all["latitude"] <= 45)
-].reset_index(drop=True)
-
-data_moho = data_moho_all
-
-crust1_moho = data_moho
-#print (crust1_moho)
 print (data_moho)
 print()
 
@@ -178,7 +168,7 @@ lon = grid_full_df_no_rf["longitude"].values
 moho_crust = grid_full_df_no_rf["Moho"].values
 spline_moho = grid_full_df_no_rf["spline_moho"].values
 
-moho_final = np.where(abs(moho_crust - spline_moho) <= 3, spline_moho, moho_crust) ## (Condition, if true: execute, else: execute)
+moho_final = np.where(abs(moho_crust - spline_moho) <= rf_error, spline_moho, moho_crust) ## (Condition, if true: execute, else: execute)
 
 df_crust = pd.DataFrame({"Latitude": lat,"Longitude": lon,"Moho": moho_final})
 
