@@ -131,104 +131,72 @@ spline_df = grid_full_df.dropna(subset=["moho"]).reset_index(drop=True)
 
 print (spline_df)
 
+# Crust1.0 lat,long with no rf
 # Extract coordinates and RF Moho values
 rf_lat = data_eq.Lat.values
 rf_lon = data_eq.Long.values
 rf_moho = data_eq.Moho_km.values
 
-# Create a new DataFrame with latitude, longitude, RF Moho, Spline Moho, and pointwise variance
-df = pd.DataFrame({
-    "latitude": rf_lat,
-    "longitude": rf_lon,
-    "rf_moho": rf_moho,
-    
-})
+rf_coords = set(zip(rf_lat, rf_lon))
 
-# Print summary
-print(df)
+grid_full_df_no_rf = data_moho[~data_moho[["latitude", "longitude"]].apply(tuple, axis=1).isin(rf_coords)].reset_index(drop=True)
+#####
+# e.g., if lat=10 & long=20 then tuple makes it (10, 20)
+# isin(rf_coords) returns a boolean True where those coordinates are present and ~ inverts the boolean to False meaning where those are not present
+# data_moho(2) the coordiantes from this df is used
+# data_moho(1) the master df from which we get the filtered row based on conditions
+# .reset_index(drop=True) : resets the old index ,i.e., from the master df
+#####
+
+#Get Spline Moho Values
+lats = grid_full.latitude.values
+lons = grid_full.longitude.values
+moho = grid_full.moho.values
+
+lon_grid, lat_grid = np.meshgrid(lons, lats)
+points = np.column_stack([lat_grid.ravel(), lon_grid.ravel()]) # Flatten the values using ravel
+values = moho.ravel()
+
+get_spline_moho = scipy.interpolate.NearestNDInterpolator(points, values)
+
+target_lats = grid_full_df_no_rf["latitude"].values
+target_lons = grid_full_df_no_rf["longitude"].values
+
+spline_moho_values = get_spline_moho(target_lats, target_lons)
+
+#projected_coords = projection(grid_full_df_no_rf["longitude"].values,grid_full_df_no_rf["latitude"].values)
+#spline.predict
+
+grid_full_df_no_rf["spline_moho"] = spline_moho_values
 
 
+df_rf = data_eq[["Lat", "Long", "Moho_km"]].copy()
+df_rf.columns = ["Latitude", "Longitude", "Moho"]
 
-# Create KDTree for RF locations (df is assumed to contain RF-based values)
-#rf_tree = cKDTree(list(zip(df.longitude, df.latitude)))
+lat = grid_full_df_no_rf["latitude"].values
+lon = grid_full_df_no_rf["longitude"].values
+moho_crust = grid_full_df_no_rf["Moho"].values
+spline_moho = grid_full_df_no_rf["spline_moho"].values
 
-# Assign RF Moho directly where RF exists (100% weight to RF)
-df["weighted_moho"] = df["rf_moho"]
-df["source"] = "RF"
+moho_final = np.where(abs(moho_crust - spline_moho) <= 3, spline_moho, moho_crust) ## (Condition, if true: execute, else: execute)
 
-# Create 1°x1° bins to find bins with no RF data
-df["lat_bin"] = (df["latitude"] // 1)
-df["lon_bin"] = (df["longitude"] // 1)
-data_moho["lat_bin"] = (data_moho["latitude"] // 1)
-data_moho["lon_bin"] = (data_moho["longitude"] // 1)
+df_crust = pd.DataFrame({"Latitude": lat,"Longitude": lon,"Moho": moho_final})
 
-# Identify bins without RF data
-rf_bins = set(zip(df["lat_bin"], df["lon_bin"]))
-all_bins = set(zip(data_moho["lat_bin"], data_moho["lon_bin"]))
-missing_rf_bins = all_bins - rf_bins
-
-# Subset data_moho where RF data is missing
-df_no_rf = data_moho[data_moho[["lat_bin", "lon_bin"]].apply(tuple, axis=1).isin(missing_rf_bins)].copy()
-df_no_rf["weighted_moho"] = df_no_rf["Moho"]
-df_no_rf["source"] = "Crust1.0"  # default source
-
-# Nearest-neighbor interpolator for spline Moho values
-nn_interp = scipy.interpolate.NearestNDInterpolator(list(zip(spline_df.longitude, spline_df.latitude)),spline_df["moho"])
-
-# Apply to df_no_rf coordinates
-df_no_rf["nearest_rf_spline_moho"] = nn_interp(df_no_rf.longitude.values, df_no_rf.latitude.values)
-
-# Compute difference
-x = df_no_rf["nearest_rf_spline_moho"] - df_no_rf["weighted_moho"]
-y = abs(x)
-
-# Apply weighting logic with fixed 1.5 km threshold
-updated_mask = y <= 1.5
-df_no_rf.loc[updated_mask, "weighted_moho"] = (
-    0.6 * df_no_rf.loc[updated_mask, "nearest_rf_spline_moho"] +
-    0.4 * df_no_rf.loc[updated_mask, "weighted_moho"]
-)
-df_no_rf.loc[updated_mask, "source"] = "weighted spline and Crust1.0"
-
-# Combine back with original RF-based data
-df_final = pd.concat([df, df_no_rf], ignore_index=True)
-
-# Rename columns if needed
-df_final.rename(columns={"Lat": "latitude", "Long": "longitude"}, inplace=True)
-
-# Save to CSV
-df_final.to_csv("weighted_moho_with_source.csv", index=False)
-
-# Output
-print(df_final)
-
+df_final_moho = pd.concat([df_rf, df_crust], ignore_index=True)
+print(df_final_moho)
 print()
 
 
 # df to xarray
-ds_all = xr.Dataset.from_dataframe(df_final)
+#ds_all = xr.Dataset.from_dataframe(df_final_moho)
 # Save to NetCDF
 #ds_all.to_netcdf("weighted_moho_all.nc")
-
-#df_moho_depth = df_final[["latitude", "longitude", "weighted_moho"]]
-## Rename the final data
-df_moho_depth = df_final[["latitude", "longitude", "weighted_moho"]].rename(
-    columns={
-        "latitude": "Latitude",
-        "longitude": "Longitude",
-        "weighted_moho": "Moho"
-    }
-)
-
-print (df_moho_depth)
-
-df_moho = df_moho_depth.copy()
-
-ds = df_moho.to_xarray()
-print (ds)
-
+#df_moho = df_final_moho.copy()
 # Load your dataframe (ensure df_moho is already defined)
-df = df_moho.copy()
+#ds = df_moho.to_xarray()
+#print (ds)
+
+df = df_final_moho.copy()
 
 # Define the target grid
 lat_grid = np.arange(-90, 90.1, 0.5)
