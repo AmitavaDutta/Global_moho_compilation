@@ -9,3 +9,5 @@
 1) Implement sediments into the original datafiles to accounrt forsediment thickness.
 2) Implement gravity calculation from tesseroid in harmonica from fatiando a terra.
 
+### Foot Note: 
+rf_error = 3 [a constant value,so may need refinining]
