@@ -6,7 +6,6 @@
 4) spline_crust.py : This is the final script used to generate the grid: global_moho.nc
 
 ### Updates Required: 
-1) Refine the interpolation for generating the final grid from a dataframe(pd)/dataset(xr). [use interpolation used in V2RhoTgibbs]
-2) Implement sediments into the origina datafiles to accounrt forsediment thickness.
-3) Implement gravity calculation from tesseroid in harmonica from fatiando a terra.
+1) Implement sediments into the original datafiles to accounrt forsediment thickness.
+2) Implement gravity calculation from tesseroid in harmonica from fatiando a terra.
 
